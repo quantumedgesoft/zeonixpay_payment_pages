@@ -30,13 +30,13 @@ export type GatewayKey =
 export default function PaymentPage() {
   const [loading, setLoading] = useState(false);
   const [selectedGateway, setSelectedGateway] = useState<GatewayKey | null>(null);
-  const [showInlineFlow, setShowInlineFlow] = useState(false); // shows BkashAgentFlow for *-agent or *-personal
-
+  const [showInlineFlow, setShowInlineFlow] = useState(false);
   const [validInvoice, setValidInvoice] = useState(true);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
 
   const searchParams = useSearchParams();
   const invoice_payment_id = searchParams.get("invoice_payment_id");
+console.log(invoice_payment_id);
 
   useEffect(() => {
     const fetchInvoiceData = async () => {

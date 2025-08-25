@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import PaymentSuccessSkeleton from "@/app/components/PaymentSuccessSkeleton";
 
 // Define TypeScript interface for payment data
 interface PaymentData {
@@ -57,7 +58,7 @@ const SuccessPage = () => {
   };
 
   if (!paymentData) {
-    return <p>Loading...</p>;
+    return <PaymentSuccessSkeleton/>;
   }
 
   // Ensure that paymentExecuteTime is not null before creating a Date object
