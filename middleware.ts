@@ -12,7 +12,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith("/payment/success")) {
+  if (pathname.startsWith("/success")) {
     if (!searchParams.has("trxID")) {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
@@ -39,6 +39,6 @@ export const config = {
   matcher: [
     "/",         
     "/payment",
-    "/payment/success",
+    "/success",
   ],
 };
