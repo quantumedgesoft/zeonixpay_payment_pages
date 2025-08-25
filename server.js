@@ -14,7 +14,7 @@ app.prepare().then(() => {
   }).listen(port)
  
   console.log(
-    `> Server listening at http://localhost:${port} as ${
+    `> Server listening at https://pay.zeonixpay.com:${port} as ${
       dev ? 'development' : process.env.NODE_ENV
     }`
   )
