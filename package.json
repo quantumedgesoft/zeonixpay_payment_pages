@@ -2,10 +2,10 @@
   "name": "zeonix-payment-page",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-     "dev": "next dev",
+ "scripts": {
+    "dev": "node server.js",
     "build": "next build",
-     "start": "next start"
+    "start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
     "framer-motion": "^12.23.12",
