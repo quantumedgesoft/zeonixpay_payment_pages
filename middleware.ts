@@ -12,8 +12,8 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith("/success")) {
-    if (!searchParams.has("trxID")) {
+  if (pathname.startsWith("/payment/callback-redirect")) {
+    if (!searchParams.has("invoice_payment_id")) {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       url.search = "";
@@ -40,5 +40,6 @@ export const config = {
     "/",         
     "/payment",
     "/success",
+    "/payment/callback-redirect",
   ],
 };

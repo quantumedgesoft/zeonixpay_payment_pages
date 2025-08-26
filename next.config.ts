@@ -5,6 +5,16 @@ const nextConfig: NextConfig = {
   env: {
     BASE_URL: process.env.BASE_URL,
   },
+
+  images: {
+remotePatterns: [
+    {
+      protocol: "http",
+      hostname: "api.zeonixpay.com",
+      pathname: "/media/**",   // matches /media/... paths
+    },
+  ],
+  },
 };
 
 export default nextConfig;

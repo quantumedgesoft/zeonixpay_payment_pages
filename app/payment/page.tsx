@@ -8,7 +8,6 @@ import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import BkashAgentFlow from "../components/BkashAgentFlow";
 
-/** --------- Types --------- */
 interface InvoiceData {
   invoice: { amount: number };
   mechant_info: { brand_name: string; brand_logo: string };
@@ -16,50 +15,72 @@ interface InvoiceData {
 }
 
 export type GatewayKey =
-  | "bkash-merchant"
-  | "bkash-personal"
-  | "bkash-agent"
-  | "nagad-merchant"
-  | "nagad-personal"
-  | "nagad-agent"
-  | "rocket-merchant"
-  | "rocket-personal"
-  | "rocket-agent";
+  | "bkash-merchant" | "bkash-personal" | "bkash-agent"
+  | "nagad-merchant" | "nagad-personal" | "nagad-agent"
+  | "rocket-merchant" | "rocket-personal" | "rocket-agent";
 
-/** --------- Page --------- */
 export default function PaymentPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+
   const [selectedGateway, setSelectedGateway] = useState<GatewayKey | null>(null);
   const [showInlineFlow, setShowInlineFlow] = useState(false);
-  const [validInvoice, setValidInvoice] = useState(true);
-  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
 
   const searchParams = useSearchParams();
   const invoice_payment_id = searchParams.get("invoice_payment_id");
-console.log(invoice_payment_id);
 
+  // fetch once per invoice id
   useEffect(() => {
+    setInvoiceData(null);
+    setError(null);
+    if (!invoice_payment_id) {
+      setError("Missing invoice ID.");
+      return;
+    }
+
+    let cancelled = false;
+
     const fetchInvoiceData = async () => {
       try {
+        setLoading(true);
         const res = await fetch(
-          `${process.env.BASE_URL}/get-payment/?invoice_payment_id=${invoice_payment_id}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL ?? process.env.BASE_URL}/get-payment/?invoice_payment_id=${encodeURIComponent(
+            invoice_payment_id
+          )}`,
           { cache: "no-store" }
         );
         const data = await res.json();
-        if (res.ok && data.status) setInvoiceData(data);
-        else setValidInvoice(false);
+
+        if (cancelled) return;
+
+        if (res.ok && data?.status) {
+          setInvoiceData(data);
+          setError(null);
+        } else {
+          setInvoiceData(null);
+          setError("We couldn’t find that invoice ID.");
+        }
       } catch (e) {
-        console.error(e);
-        setValidInvoice(false);
+        if (!cancelled) {
+          console.error(e);
+          setInvoiceData(null);
+          setError("Something went wrong while fetching the invoice.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
-    if (invoice_payment_id) fetchInvoiceData();
+
+    fetchInvoiceData();
+    return () => {
+      cancelled = true;
+    };
   }, [invoice_payment_id]);
 
   const invoice = invoiceData?.invoice;
   const mechant_info = invoiceData?.mechant_info;
 
-  // Fallbacks
   const amount = invoice?.amount ?? 1250;
   const currency = "BDT";
 
@@ -70,22 +91,19 @@ console.log(invoice_payment_id);
   const onPay = async () => {
     if (!selectedGateway) return;
 
-    // Inline flow for any *-agent or *-personal
     if (isInlineFlow) {
       setShowInlineFlow(true);
       return;
     }
 
-    // Only *-merchant redirects
     if (selectedGateway.includes("merchant")) {
       setLoading(true);
-
-      const base = process.env.BASE_URL;
+      const base = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.BASE_URL;
       const path = selectedGateway.startsWith("bkash")
         ? "get-payment/bkash"
         : selectedGateway.startsWith("nagad")
-        ? "get-payment/nagad"
-        : "get-payment/rocket";
+          ? "get-payment/nagad"
+          : "get-payment/rocket";
 
       const url = `${base}/${path}/?invoice_payment_id=${encodeURIComponent(
         invoice_payment_id ?? ""
@@ -99,17 +117,58 @@ console.log(invoice_payment_id);
     toast("Unsupported method", { icon: "🤔" });
   };
 
-  if (!validInvoice) {
+  /* ---------- RENDER STATES ---------- */
+
+  // 1) Skeleton while fetching
+  if (loading && !invoiceData && !error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-rose-600">Invalid Invoice</h1>
-          <p className="text-slate-600">We couldn’t find that invoice ID.</p>
+      <div className="w-full max-w-lg animate-pulse space-y-4 p-4 mx-auto">
+        <div className="h-16 rounded-2xl bg-white shadow-xl ring-1 ring-black/5 p-6 space-y-4">
+          <div className="h-6 bg-slate-200 rounded w-1/3 mx-auto" />
+        </div>
+
+        <div className="rounded-2xl bg-white shadow-xl ring-1 ring-black/5 p-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-slate-200" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-slate-200 rounded w-1/2" />
+              <div className="h-3 bg-slate-100 rounded w-1/3" />
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <div className="h-4 bg-slate-100 rounded w-full" />
+            <div className="h-4 bg-slate-100 rounded w-5/6" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mt-6">
+            {Array.from({ length: 9 }).map((_, idx) => (
+              <div key={idx} className="h-20 bg-slate-100 rounded" />
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <div className="h-10 bg-slate-200 rounded" />
+            <div className="h-10 bg-slate-100 rounded" />
+          </div>
         </div>
       </div>
     );
   }
 
+  // 2) Error / Invalid invoice after fetch (or missing param)
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-rose-600">Invalid Invoice</h1>
+          <p className="text-slate-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 3) Loaded successfully → show payment UI
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4 w-full">
       <motion.div
@@ -120,7 +179,6 @@ console.log(invoice_payment_id);
       >
         <AnimatePresence mode="wait">
           {!showInlineFlow ? (
-            /* -------------------- PAYMENT UI -------------------- */
             <motion.div
               key="payment-ui"
               initial={{ opacity: 0, y: 8 }}
@@ -139,9 +197,9 @@ console.log(invoice_payment_id);
                 </button>
               </div>
 
-              {/* Top purple logo area */}
+              {/* amount header */}
               <div className="bg-purple-100 flex items-center justify-center py-6">
-                <span className="text-purple-700 font-bold text-xl">৳</span>
+                <span className="text-purple-700 font-bold text-xl">BDT {amount}</span>
               </div>
 
               {/* Merchant info */}
@@ -268,7 +326,7 @@ console.log(invoice_payment_id);
                 </div>
               </div>
 
-              {/* Actions (only visible when a MERCHANT gateway is selected) */}
+              {/* Actions */}
               {selectedGateway?.includes("merchant") && (
                 <div className="space-y-3 px-6 pb-6">
                   <button
@@ -303,7 +361,6 @@ console.log(invoice_payment_id);
               )}
             </motion.div>
           ) : (
-            /* -------------------- INLINE FLOW (agent/personal) -------------------- */
             <motion.div
               key="inline-flow"
               initial={{ opacity: 0, y: 8 }}
@@ -318,22 +375,21 @@ console.log(invoice_payment_id);
                     selectedGateway.startsWith("bkash")
                       ? "/geteway/bkash.svg"
                       : selectedGateway.startsWith("nagad")
-                      ? "/geteway/nagad.svg"
-                      : "/geteway/rocket.svg"
+                        ? "/geteway/nagad.svg"
+                        : "/geteway/rocket.svg"
                   }
                   receiverMsisdn={
                     selectedGateway.startsWith("bkash")
                       ? "01770618575"
                       : selectedGateway.startsWith("nagad")
-                      ? "01XXXXXXXXX"
-                      : "01YYYYYYYYY"
+                        ? "01XXXXXXXXX"
+                        : "01YYYYYYYYY"
                   }
                   amount={amount}
                   paymentMethod={selectedGateway}
-                  onBack={() => setShowInlineFlow(false)}  // back to payment page
-                  onClose={() => setShowInlineFlow(false)} // cancel behaves the same
+                  onBack={() => setShowInlineFlow(false)}
+                  onClose={() => setShowInlineFlow(false)}
                   onVerifyTrx={async (trx) => {
-                    // TODO: wire to your API
                     console.log("Verify", selectedGateway, trx);
                   }}
                 />
@@ -342,7 +398,6 @@ console.log(invoice_payment_id);
           )}
         </AnimatePresence>
 
-        {/* tiny help row (hidden while inline flow is shown) */}
         {!showInlineFlow && (
           <div className="mx-auto mt-3 flex items-center justify-center gap-2 text-[11px] text-slate-500">
             <span>Need help?</span>
@@ -357,7 +412,7 @@ console.log(invoice_payment_id);
   );
 }
 
-/** ---------- small UI helpers ---------- */
+/* small UI helpers */
 function LogoCard({
   src,
   label,

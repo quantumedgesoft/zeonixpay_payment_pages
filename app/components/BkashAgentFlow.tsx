@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { redirect, useRouter } from "next/navigation";
 
 export type BkashAgentFlowProps = {
   merchantName: string;
@@ -16,6 +17,16 @@ export type BkashAgentFlowProps = {
   paymentMethod: string; // e.g. "bkash-agent" | "bkash-personal" | ...
 };
 
+export interface PaymentResponse {
+  status: boolean;
+  data: {
+    Method: string;
+    Number: string;
+    Message: string;
+  };
+}
+
+
 export default function BkashAgentFlow({
   merchantName,
   merchantInvoiceId,
@@ -27,23 +38,28 @@ export default function BkashAgentFlow({
   paymentMethod,
 }: BkashAgentFlowProps) {
   const [trxId, setTrxId] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const router = useRouter()
+  const [invoiceData, setInvoiceData] = useState<PaymentResponse | null>(null);
+  const manual_payment_url = `${process.env.BASE_URL}/get-payment/${paymentMethod.split("-")[0]}-payment/?method=${paymentMethod}&invoice_payment_id=${merchantInvoiceId}`
+
   const dialCode = paymentMethod.includes("bkash")
     ? "*247#"
     : paymentMethod.includes("nagad")
-    ? "*167#"
-    : "*322#";
+      ? "*167#"
+      : "*322#";
   const method = paymentMethod.includes("bkash")
     ? "bKash"
     : paymentMethod.includes("nagad")
-    ? "Nagad"
-    : "Rocket";
+      ? "Nagad"
+      : "Rocket";
 
-    const providerColor =
-  paymentMethod.includes("bkash")
-    ? "rgba(207, 39, 113, 0.90)"
-    : paymentMethod.includes("nagad")
-    ? "rgba(201, 0, 8, 0.90)"
-    : "rgba(137, 40, 143, 0.90)";
+  const providerColor =
+    paymentMethod.includes("bkash")
+      ? "rgba(207, 39, 113, 0.90)"
+      : paymentMethod.includes("nagad")
+        ? "rgba(201, 0, 8, 0.90)"
+        : "rgba(137, 40, 143, 0.90)";
 
 
   const actionText = paymentMethod.includes("personal") ? "Send Money" : "Cash Out";
@@ -52,13 +68,60 @@ export default function BkashAgentFlow({
     try {
       await navigator.clipboard.writeText(receiverMsisdn);
       toast.success("Copied");
-    } catch {}
+    } catch { }
   };
 
   const verify = async () => {
-    if (!trxId.trim()) return;
-    if (onVerifyTrx) await onVerifyTrx(trxId.trim());
+    if (!trxId.trim()) return toast.error("Transaction ID is required");
+    try {
+      setVerifying(true);
+
+      const res = await fetch(manual_payment_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transaction_Id: trxId.trim() }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || json?.status === false) {
+        toast.error(json?.message || "Verification failed");
+        return;
+      }
+
+      toast.success(json?.message || "Verified ✅");
+      console.log(json);
+      router.push(
+        `/payment/callback-redirect?invoice_payment_id=${encodeURIComponent(
+          json?.invoice_payment_id ?? "unknown"
+        )}&status=${res.status ? "success" : "cancle"}`
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error("Network error");
+    } finally {
+      setVerifying(false);
+    }
   };
+  console.log(invoiceData)
+
+
+  useEffect(() => {
+    const fetchInvoiceData = async () => {
+      try {
+        const res = await fetch(
+          manual_payment_url,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        console.log(data)
+        if (res.ok && data.status) setInvoiceData(data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    if (paymentMethod) fetchInvoiceData();
+  }, [paymentMethod]);
 
   return (
     <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl ring-1 ring-black/5 overflow-hidden mx-auto">
@@ -95,7 +158,7 @@ export default function BkashAgentFlow({
             </div>
           </div>
         </div>
-          <span className="font-semibold bg-white/20 rounded px-2 py-0.5 tel">৳{amount.toFixed(2)}</span>
+        <span className="font-semibold bg-white/20 rounded px-2 py-0.5 tel">৳{amount.toFixed(2)}</span>
       </div>
 
       {/* Instruction card */}
@@ -124,7 +187,7 @@ export default function BkashAgentFlow({
           <Divider />
           <Step className="flex items-center gap-2 flex-wrap">
             উত্তোলক নম্বর হিসেবে এই নম্বরটি লিখুন{" "}
-            <span className="font-bold bg-white/20 rounded px-2 py-0.5">{receiverMsisdn}</span>
+            <span className="font-bold bg-white/20 rounded px-2 py-0.5">{invoiceData?.data?.Number}</span>
             <button
               onClick={copyNumber}
               className="inline-flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-rose-700 font-medium hover:bg-white"
@@ -150,11 +213,11 @@ export default function BkashAgentFlow({
       <div className="px-6 pb-6 flex gap-3">
         <button
           onClick={verify}
-          disabled={!trxId.trim()}
+          disabled={!trxId.trim() || verifying}
           style={{ backgroundColor: providerColor }}
           className="flex-1 rounded-xl  px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
         >
-          VERIFY
+          {verifying ? "VERIFYING…" : "VERIFY"}
         </button>
       </div>
     </div>
